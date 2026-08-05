@@ -1,92 +1,32 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fixed Wing Fire Resources</title><style>
-:root{--bg:#0f1519;--card:#1b252c;--text:#f6f4ee;--muted:#b7b0a1;--accent:#e07b39;--line:#35434d}*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,#0f1519,#1a211c);color:var(--text);line-height:1.55}.wrap{max-width:900px;margin:0 auto;padding:48px 22px}.hero{padding:34px;border:1px solid var(--line);border-radius:18px;background:rgba(27,37,44,.94);box-shadow:0 12px 35px rgba(0,0,0,.25)}h1{margin:0 0 10px;font-size:clamp(2rem,4vw,3.4rem)}h2{margin:0 0 8px}.sub{color:var(--muted);font-size:1.08rem}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:28px}.card{display:block;padding:22px;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--text);text-decoration:none}.card:hover{border-color:var(--accent);transform:translateY(-1px)}.card p{color:var(--muted);margin:8px 0 0}.links{margin-top:24px}.links a{color:#ffd199}.footer{margin-top:36px;color:var(--muted);font-size:.9rem}.button{display:inline-block;margin-top:16px;padding:12px 16px;border-radius:10px;background:var(--accent);color:#1b120c;text-decoration:none;font-weight:bold}.views{margin-top:18px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.views-badge{display:inline-flex;align-items:stretch;overflow:hidden;border-radius:4px;font-size:12px;line-height:20px;font-weight:700;font-family:Verdana,Geneva,Arial,sans-serif;box-shadow:inset 0 -1px 0 rgba(0,0,0,.12)}.views-badge .label{background:#555;color:#fff;padding:0 8px}.views-badge .count{background:var(--accent);color:#fff;padding:0 8px;min-width:3.5em;text-align:center}
-</style></head><body><main class="wrap"><section class="hero"><h1>Fixed Wing Fire Resources</h1><p class="sub">Links for the latest interactive map and briefing products.</p><div class="grid"><a class="card" href="map-downloads/"><h2>Map Downloads</h2><p>ForeFlight KMZ and other downloadable map products</p></a><a class="card" href="interactive-map/"><h2>Interactive Map</h2><p>Updated daily at 10:00am MST</p></a><a class="card" href="daily-summary/"><h2>Daily Summary</h2><p>Updated daily at 10 am MST</p></a><a class="card" href="weekly-summary/"><h2>Weekly Summary</h2><p>Updated weekly on Wednesdays at 09:00am MST</p></a></div><div class="footer"><p style="margin:0 0 10px">Bookmark this page for the current fire products.</p><div class="views" id="views" aria-live="polite"><span class="views-badge" title="Page views today / total"><span class="label">Today / Total</span><span class="count" id="view-count">...</span></span></div></div></section></main>
-<script>
-(function () {
-  var el = document.getElementById('view-count');
-  if (!el) return;
-
-  var ns = 'isaacshinkle-hub.github.io';
-  var totalKey = 'fire-total';
-  var state = { today: null, total: null };
-  var finished = false;
-
-  function denverYmd() {
-    try {
-      var parts = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'America/Denver',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).formatToParts(new Date());
-      var y = '', m = '', d = '';
-      for (var i = 0; i < parts.length; i++) {
-        if (parts[i].type === 'year') y = parts[i].value;
-        if (parts[i].type === 'month') m = parts[i].value;
-        if (parts[i].type === 'day') d = parts[i].value;
-      }
-      if (y && m && d) return y + '-' + m + '-' + d;
-    } catch (e) {}
-    var now = new Date();
-    var utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-    // Mountain offset approx: MST -7 / MDT -6. Use Intl above primarily.
-    var mt = new Date(utc - (6 * 3600000));
-    var mm = String(mt.getUTCMonth() + 1);
-    var dd = String(mt.getUTCDate());
-    if (mm.length < 2) mm = '0' + mm;
-    if (dd.length < 2) dd = '0' + dd;
-    return mt.getUTCFullYear() + '-' + mm + '-' + dd;
-  }
-
-  function paint() {
-    if (state.today == null || state.total == null) return;
-    el.textContent = String(state.today) + ' / ' + String(state.total);
-    finished = true;
-  }
-
-  function failSafe() {
-    if (!finished) el.textContent = 'â€”';
-  }
-
-  function loadJsonp(url, cbName, onData) {
-    window[cbName] = function (data) {
-      try { onData(data); } finally {
-        try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
-        if (s && s.parentNode) s.parentNode.removeChild(s);
-      }
-    };
-    var s = document.createElement('script');
-    s.async = true;
-    s.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + encodeURIComponent(cbName);
-    s.onerror = function () {
-      try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
-      failSafe();
-    };
-    document.head.appendChild(s);
-  }
-
-  var dayKey = 'fire-day-' + denverYmd();
-  var uid = String(Date.now());
-
-  // JSONP avoids Safari/iOS fetch/CORS/content-blocker issues with hitscounter.dev
-  loadJsonp(
-    'https://abacus.jasoncameron.dev/hit/' + encodeURIComponent(ns) + '/' + encodeURIComponent(dayKey),
-    'fireTodayCb' + uid,
-    function (data) {
-      if (data && data.value != null) state.today = data.value;
-      paint();
-    }
-  );
-  loadJsonp(
-    'https://abacus.jasoncameron.dev/hit/' + encodeURIComponent(ns) + '/' + encodeURIComponent(totalKey),
-    'fireTotalCb' + uid,
-    function (data) {
-      if (data && data.value != null) state.total = data.value;
-      paint();
-    }
-  );
-
-  setTimeout(failSafe, 8000);
-})();
-</script>
-</body></html>
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fire products moved — Fire Duty Status</title>
+  <meta http-equiv="refresh" content="0; url=https://firedutystatus.com/?rail=products" />
+  <link rel="canonical" href="https://firedutystatus.com/?rail=products" />
+  <style>
+    :root { --bg:#0f1519; --card:#1b252c; --text:#f6f4ee; --muted:#b7b0a1; --accent:#e07b39; --line:#35434d; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Arial,Helvetica,sans-serif; background:linear-gradient(135deg,#0f1519,#1a211c); color:var(--text); line-height:1.55; }
+    .wrap { max-width:720px; margin:0 auto; padding:48px 22px; }
+    .card { padding:28px; border:1px solid var(--line); border-radius:18px; background:rgba(27,37,44,.94); box-shadow:0 12px 35px rgba(0,0,0,.25); }
+    h1 { margin:0 0 10px; font-size:clamp(1.6rem,3.5vw,2.4rem); }
+    p { color:var(--muted); margin:0 0 14px; }
+    .button { display:inline-block; margin-top:8px; padding:12px 16px; border-radius:10px; background:var(--accent); color:#1b120c; text-decoration:none; font-weight:bold; }
+    code { color:#ffd199; }
+  </style>
+  <script>location.replace("https://firedutystatus.com/?rail=products");</script>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <h1>Fire products moved</h1>
+      <p>Maps, summaries, and downloads now live on <strong>Fire Duty Status → Products</strong>. This old GitHub Fire hub no longer hosts the product library.</p>
+      <p><a class="button" href="https://firedutystatus.com/?rail=products">Open Products</a></p>
+      <p>If you are not redirected automatically: <code>https://firedutystatus.com/?rail=products</code></p>
+    </section>
+  </main>
+</body>
+</html>
